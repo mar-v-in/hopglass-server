@@ -114,8 +114,19 @@ function backupData() {
 //start collector
 
 function startCollector() {
-  collector.bind(collectorport)
-  
+  collector.bind(collectorport, '::', () => {
+    try {
+      process.setgroups(['nogroup'])
+      process.setgid('nogroup')
+      process.setuid('nobody')
+    } catch(err) {
+      console.log('')
+      console.log('capabilities could not be dropped. exiting.')
+      process.exit(1)
+    }
+    console.log('capabilities dropped')
+  })
+
   retrieve('nodeinfo')
   retrieve('neighbours')
   retrieve('statistics')
