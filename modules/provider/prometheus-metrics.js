@@ -22,19 +22,19 @@ var _ = require('lodash')
 module.exports = function(receiver, config) {
 
   function isOnline(node) {
-    if (node)
-      return Math.abs((node.lastseen ? new Date(node.lastseen) : new Date()) - new Date()) < config.offlineTime * 1000
+    if (node && node.lastseen)
+      return Math.abs(new Date(node.lastseen) - new Date()) < config.offlineTime * 1000
     else
-      return true
+      return false
   }
 
   //Prometheus metrics
   function getMetrics(stream, query) {
     stream.writeHead(200, { 'Content-Type': 'text/plain' })
     var data = receiver.getData(query)
-    var save = function(n, id, stream, what, where) {
+    var save = function(n, id, stream, what, where, date) {
       if (_.has(n, what))
-        stream.write((where ? where : what.replace(/\./g, '_')) + id + ' ' +  _.get(n, what) + '\n')
+        stream.write((where ? where : what.replace(/\./g, '_')) + id + ' ' +  _.get(n, what) + (date ? ' ' + date.getTime() : '') + '\n')
     }
     function get(n, what) {
       if (_.has(n, what))
@@ -65,18 +65,19 @@ module.exports = function(receiver, config) {
       counter_meshnodes_total++
       if (isOnline(n)) {
         counter_meshnodes_online_total++
-        if (_.has(n, 'nodeinfo.hostname') && _.has(n, 'statistics.gateway') && isOnline(n)) {
+        if (_.has(n, 'nodeinfo.hostname') && _.has(n, 'statistics.gateway') && _.has(n, 'lastupdate.statistics') && isOnline(n)) {
           var id = '{hostname="' + _.get(n, 'nodeinfo.hostname','') + '",nodeid="' + k + '",gateway="' + _.get(n, 'statistics.gateway') + '"}'
-          save(n, id, stream, 'statistics.clients.total')
-          save(n, id, stream, 'statistics.uptime')
-          save(n, id, stream, 'statistics.traffic.rx.bytes')
-          save(n, id, stream, 'statistics.traffic.mgmt_rx.bytes')
-          save(n, id, stream, 'statistics.traffic.tx.bytes')
-          save(n, id, stream, 'statistics.traffic.mgmt_tx.bytes')
-          save(n, id, stream, 'statistics.traffic.forward.bytes')
-          save(n, id, stream, 'statistics.loadavg')
+          var date = new Date(n.lastupdate.statistics)
+          save(n, id, stream, 'statistics.clients.total', null, date)
+          save(n, id, stream, 'statistics.uptime', null, date)
+          save(n, id, stream, 'statistics.traffic.rx.bytes', null, date)
+          save(n, id, stream, 'statistics.traffic.mgmt_rx.bytes', null, date)
+          save(n, id, stream, 'statistics.traffic.tx.bytes', null, date)
+          save(n, id, stream, 'statistics.traffic.mgmt_tx.bytes', null, date)
+          save(n, id, stream, 'statistics.traffic.forward.bytes', null, date)
+          save(n, id, stream, 'statistics.loadavg', null, date)
           if (_.has(n, 'statistics.memory.free') && _.has(n, 'statistics.memory.total'))
-            stream.write('statistics_memory_usage' + id + ' ' + (n.statistics.memory.total - n.statistics.memory.free)/n.statistics.memory.total + '\n')
+            stream.write('statistics_memory_usage' + id + ' ' + (n.statistics.memory.total - n.statistics.memory.free)/n.statistics.memory.total + ' ' + date.getTime() + '\n')
         }
         counter_traffic_rx += get(n, 'statistics.traffic.rx.bytes')
         counter_traffic_mgmt_rx += get(n, 'statistics.traffic.mgmt_rx.bytes')
@@ -93,7 +94,8 @@ module.exports = function(receiver, config) {
       finished1()
     }, function() {
       async.forEachOf(data, function(n, k, finished2) {
-        if (_.has(n, 'neighbours.batadv') && isOnline(n)) {
+        if (_.has(n, 'neighbours.batadv') && _.has(n, 'lastupdate.neighbours') && isOnline(n)) {
+          var date = new Date(n.lastupdate.neighbours)
           for (let dest in n.neighbours.batadv) {
             if (_.has(n.neighbours.batadv[dest], 'neighbours'))
               for (let src in n.neighbours.batadv[dest].neighbours) {
@@ -107,7 +109,7 @@ module.exports = function(receiver, config) {
                 var target_name = _.get(data, [target, 'nodeinfo', 'hostname'], target)
                 stream.write('link_tq{source="' + source + '",target="' + target
                   + '",source_name="' + source_name + '",target_name="' + target_name
-                  + '",link_type="' + typeTable[dest]  + '"} ' + tq + '\n')
+                  + '",link_type="' + typeTable[dest]  + '"} ' + tq + ' ' + date.getTime() + '\n')
               }
           }
         }

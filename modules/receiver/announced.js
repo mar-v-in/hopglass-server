@@ -71,13 +71,20 @@ module.exports = function(configData) {
           raw[id] = {}
           raw[id].firstseen = new Date().toISOString()
         }
+        if (!raw[id].lastupdate) {
+          raw[id].lastupdate = {}
+        }
 
-        if (obj.nodeinfo)
+        if (obj.nodeinfo) {
           raw[id].nodeinfo = obj.nodeinfo
-        else if (obj.statistics)
+          raw[id].lastupdate.nodeinfo = new Date().toISOString()
+        } else if (obj.statistics) {
           raw[id].statistics = obj.statistics
-        else if (obj.neighbours)
+          raw[id].lastupdate.statistics = new Date().toISOString()
+        } else if (obj.neighbours) {
           raw[id].neighbours = obj.neighbours
+          raw[id].lastupdate.neighbours = new Date().toISOString()
+        }
         raw[id].lastseen = new Date().toISOString()
         if ((obj.statistics || obj.neighbours) && !raw[id].nodeinfo) { // request nodeinfo if only received statistics or neighbours (speedup for new nodes)
           retrieve('nodeinfo', rinfo.address)
